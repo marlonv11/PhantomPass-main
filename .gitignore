@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Secrets / config
+.env
+.env.*
+*.secret
+config.local.*
+
+# Data / output
+*.json
+!package.json
+data/
+output/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

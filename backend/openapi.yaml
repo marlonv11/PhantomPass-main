@@ -1,0 +1,334 @@
+openapi: 3.0.3
+info:
+  title: PhantomPass API
+  version: 0.1.0
+  description: |
+    Requisito 1: solicitud de consultas con filtros.
+
+    El modo real se limita a la portada/perfil de la cuenta y al blog público
+    con artículos enlazados. Nunca visita rutas de estadísticas o suscripción,
+    y se detiene si no puede verificarse robots.txt. Con `PHANTOMPASS_MOCK=1`
+    (por defecto) el resultado es simulado y viene marcado con
+    `resultado.mock = true`.
+
+    Solo se contempla información visible con la cuenta gratuita; no se
+    solicitan datos de suscripción.
+servers:
+  - url: http://127.0.0.1:8000
+paths:
+  /api/health:
+    get:
+      summary: Estado del servicio
+      responses:
+        "200":
+          description: Servicio activo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  mock:
+                    type: boolean
+                    example: true
+  /api/filtros:
+    get:
+      summary: Metadatos de filtros para el frontend
+      responses:
+        "200":
+          description: Tipos, campos y límites aceptados
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /api/consultas:
+    post:
+      summary: Crear una consulta con filtros
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsultaRequest"
+      responses:
+        "202":
+          description: Consulta aceptada y encolada
+          headers:
+            Location:
+              description: URL del trabajo creado
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          description: Filtros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      summary: Listar consultas recientes
+      parameters:
+        - name: limite
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: Lista de trabajos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Job"
+  /api/consultas/{job_id}:
+    get:
+      summary: Consultar estado y resultado de un trabajo
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trabajo encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          description: Trabajo inexistente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/ia/estado:
+    get:
+      summary: Estado de la integración con IA (OpenRouter)
+      responses:
+        "200":
+          description: Si hay clave configurada y el modelo por defecto
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configurada:
+                    type: boolean
+                  modelo:
+                    type: string
+  /api/consultas/{job_id}/preguntar:
+    post:
+      summary: Preguntar a la IA sobre el resultado de una consulta
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreguntaRequest"
+      responses:
+        "200":
+          description: Respuesta generada por el modelo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RespuestaIA"
+        "400":
+          description: Pregunta inválida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Consulta inexistente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: La consulta aún no terminó
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Error de OpenRouter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Falta OPENROUTER_API_KEY
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  schemas:
+    ConsultaRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        tipo:
+          type: string
+          enum: [perfil, texto, documentos, busqueda]
+          default: perfil
+          description: >-
+            perfil = portada y nombre visible de la cuenta; texto = filtrar
+            contenido gratuito por texto; documentos = enlaces a archivos
+            del blog; busqueda = búsqueda local en el blog. País, partida y
+            fechas no aplican a contenido editorial.
+        texto:
+          type: string
+          nullable: true
+        pais:
+          type: string
+          nullable: true
+        partida:
+          type: string
+          nullable: true
+          description: Código de partida arancelaria.
+        fecha_desde:
+          type: string
+          format: date
+          nullable: true
+        fecha_hasta:
+          type: string
+          format: date
+          nullable: true
+        limite:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        filtros_extra:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+      example:
+        tipo: busqueda
+        texto: café
+        pais: CO
+        fecha_desde: "2024-01-01"
+        fecha_hasta: "2024-12-31"
+        limite: 20
+    Consulta:
+      type: object
+      properties:
+        tipo:
+          type: string
+          enum: [perfil, texto, documentos, busqueda]
+        texto:
+          type: string
+          nullable: true
+        pais:
+          type: string
+          nullable: true
+        partida:
+          type: string
+          nullable: true
+        fecha_desde:
+          type: string
+          format: date
+          nullable: true
+        fecha_hasta:
+          type: string
+          format: date
+          nullable: true
+        limite:
+          type: integer
+        filtros_extra:
+          type: object
+          additionalProperties: true
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+        estado:
+          type: string
+          enum: [queued, running, done, error]
+        creada_en:
+          type: string
+          format: date-time
+        iniciada_en:
+          type: string
+          format: date-time
+          nullable: true
+        terminada_en:
+          type: string
+          format: date-time
+          nullable: true
+        consulta:
+          $ref: "#/components/schemas/Consulta"
+        resultado:
+          type: object
+          nullable: true
+          additionalProperties: true
+        error:
+          type: string
+          nullable: true
+    PreguntaRequest:
+      type: object
+      required: [pregunta]
+      additionalProperties: false
+      properties:
+        pregunta:
+          type: string
+          maxLength: 2000
+          example: "¿Cuántos registros hay y de qué país?"
+    RespuestaIA:
+      type: object
+      properties:
+        job_id:
+          type: string
+        pregunta:
+          type: string
+        respuesta:
+          type: string
+        modelo:
+          type: string
+        mock:
+          type: boolean
+        uso:
+          type: object
+          nullable: true
+          additionalProperties: true
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                additionalProperties: true

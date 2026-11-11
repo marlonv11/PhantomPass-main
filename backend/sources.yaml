@@ -1,0 +1,17 @@
+# Registro de fuentes de scraping.
+#
+# Cada entrada es un sitio que podemos scrapear. `allowed` DEBE ser true solo
+# si tienes permiso explicito (ToS / autorizacion del dueno del sitio).
+# Por seguridad el valor por defecto es false: una fuente no se scrapea hasta
+# que la marques como permitida.
+#
+# Para agregar una pagina nueva: copia un bloque, cambia la key y los datos.
+
+sources:
+  example:
+    name: "Example Domain (placeholder)"
+    base_url: "https://example.com"
+    allowed: false          # cambiar a true solo con permiso
+    selectors:
+      title: "h1"
+    notes: "Sitio de ejemplo. Reemplazar por la fuente con permiso."
